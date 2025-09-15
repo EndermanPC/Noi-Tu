@@ -1083,7 +1083,7 @@ def choose_strategic_move(last_word, used_phrases, history_words, candidates, de
     best_score = -float("inf")
     memo = {}
 
-    # MOVE ORDERING
+    # --- MOVE ORDERING ---
     # Reorder the candidate list.
     # Prioritize the best move from the previous loop (principal_variation_move).
     sorted_candidates = []
@@ -1103,6 +1103,7 @@ def choose_strategic_move(last_word, used_phrases, history_words, candidates, de
     
     other_candidates.sort(key=opponent_options)
     sorted_candidates.extend(other_candidates)
+    # --- END MOVE ORDERING ---
 
     for phrase in sorted_candidates:
         _, next_word = phrase.split()
@@ -1134,7 +1135,7 @@ async def choose_bot_phrase(last_word, history_words, history_phrases, difficult
         return candidates[0] if candidates else None
     
     elif difficulty.startswith("insane"):
-        # LOGIC IDDFS (Iterative Deepening)
+        # --- LOGIC IDDFS (Iterative Deepening) ---
         best_move_overall = None
         
         # Set maximum time and depth
@@ -1183,6 +1184,7 @@ async def choose_bot_phrase(last_word, history_words, history_phrases, difficult
         else:
             # Fallback if IDDFS finds nothing (e.g. times out at depth 1)
             return random.choice(candidates)
+        # --- END OF IDDFS ---
 
     else:
         return random.choice(candidates)
@@ -2186,3 +2188,4 @@ async def hint(ctx):
 
 bot.run("YOUR_DISCORD_BOT_TOKEN")
 
+# Link: https://discord.com/oauth2/authorize?client_id=1396131015843385437&permissions=274877978688&integration_type=0&scope=bot
