@@ -27,7 +27,9 @@ banned_users = set()
 DB_PATH = "databases.db"
 
 # ====== LOGGING ======
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+)
 
 # ====== DISCORD BOT INITIALIZATION ======
 intents = discord.Intents.default()
@@ -43,7 +45,7 @@ hall_of_fame = {}  # team_name -> {"points": int, "streak": int, "members": [use
 season_info = {
     "seasons": 1,
     "start": datetime.utcnow().isoformat(),
-    "end": (datetime.utcnow() + timedelta(days=90)).isoformat()
+    "end": (datetime.utcnow() + timedelta(days=90)).isoformat(),
 }
 
 # ====== BOT PLAY SYSTEM ======
@@ -51,6 +53,7 @@ season_info = {
 _ZOBRIST_PHRASE_TABLE = {}
 _ZOBRIST_LAST_WORD = {}
 _ZOBRIST_SIDE = {"bot": secrets.randbits(64), "player": secrets.randbits(64)}
+
 
 def _zobrist_key(last_word, used_phrases_frozen, turn):
     h = 0
@@ -62,6 +65,7 @@ def _zobrist_key(last_word, used_phrases_frozen, turn):
     # turn
     h ^= _ZOBRIST_SIDE.get(turn, 0)
     return h
+
 
 # ====== PHRASE DICTIONARY ======
 VALID_PHRASES = set()
@@ -75,6 +79,7 @@ ANTI_SCRIPT_INTERVAL = timedelta(seconds=6.0)
 MAX_VIOLATIONS = 5
 
 # ====== DATABASES ======
+
 
 def init_db():
     try:
@@ -121,6 +126,7 @@ def init_db():
     except Exception as e:
         logging.error(f"Error initializing database: {e}")
 
+
 def load_season_info():
     global season_info
     if os.path.exists(DB_PATH):
@@ -131,40 +137,37 @@ def load_season_info():
                 row = cur.fetchone()
                 if row:
                     seasons, start, end = row
-                    season_info = {
-                        "seasons": seasons,
-                        "start": start,
-                        "end": end
-                    }
+                    season_info = {"seasons": seasons, "start": start, "end": end}
                 else:
                     # Nếu chưa có dữ liệu, khởi tạo mặc định
                     season_info = {
                         "seasons": 1,
                         "start": "2025-07-28T00:00:00",
-                        "end": "2025-08-01T00:00:00"
+                        "end": "2025-08-01T00:00:00",
                     }
                     save_season_info()
         except Exception as e:
             logging.error(f"Error loading season from database: {e}")
 
+
 def save_season_info():
     try:
         with sqlite3.connect(DB_PATH) as conn:
             cur = conn.cursor()
-            cur.execute("""
+            cur.execute(
+                """
                 INSERT INTO season_info (id, seasons, start, end)
                 VALUES (1, ?, ?, ?)
                 ON CONFLICT(id) DO UPDATE SET
                     seasons = excluded.seasons,
                     start = excluded.start,
                     end = excluded.end
-            """, (
-                season_info["seasons"],
-                season_info["start"],
-                season_info["end"]
-            ))
+            """,
+                (season_info["seasons"], season_info["start"], season_info["end"]),
+            )
     except Exception as e:
         logging.error(f"Error saving season to database: {e}")
+
 
 def load_user_stats():
     global user_stats
@@ -189,20 +192,25 @@ def load_user_stats():
         logging.info("Database file not found.")
         user_stats = {}
 
+
 def save_user_stats():
     if os.path.exists(DB_PATH):
         try:
             with sqlite3.connect(DB_PATH) as conn:
                 cur = conn.cursor()
                 for uid, data in user_stats.items():
-                    cur.execute("""
+                    cur.execute(
+                        """
                         INSERT INTO user_stats (user_id, rank, solan, streak)
                         VALUES (?, ?, ?, ?)
                         ON CONFLICT(user_id) DO UPDATE SET
                             rank=excluded.rank, solan=excluded.solan, streak=excluded.streak
-                    """, (uid, data["rank"], data["solan"], data["streak"]))
+                    """,
+                        (uid, data["rank"], data["solan"], data["streak"]),
+                    )
         except Exception as e:
             logging.error(f"Error saving rank to database: {e}")
+
 
 def load_hall_of_fame():
     global hall_of_fame
@@ -211,13 +219,15 @@ def load_hall_of_fame():
             hall_of_fame.clear()
             with sqlite3.connect(DB_PATH) as conn:
                 cur = conn.cursor()
-                for team_name, points, streak, members_json in cur.execute("SELECT * FROM hall_of_fame"):
+                for team_name, points, streak, members_json in cur.execute(
+                    "SELECT * FROM hall_of_fame"
+                ):
                     members = json.loads(members_json)
                     members = [str(m) for m in members]
                     hall_of_fame[team_name] = {
                         "points": points,
                         "streak": streak,
-                        "members": members
+                        "members": members,
                     }
             is_changed = False
             for team, info in list(hall_of_fame.items()):
@@ -234,20 +244,25 @@ def load_hall_of_fame():
         logging.info("Database file not found.")
         hall_of_fame = {}
 
+
 def save_hall_of_fame():
     try:
         with sqlite3.connect(DB_PATH) as conn:
             cur = conn.cursor()
             for team, data in hall_of_fame.items():
                 members_as_str = [str(m) for m in data["members"]]
-                cur.execute("""
+                cur.execute(
+                    """
                     INSERT INTO hall_of_fame (team_name, points, streak, members)
                     VALUES (?, ?, ?, ?)
                     ON CONFLICT(team_name) DO UPDATE SET
                         points=excluded.points, streak=excluded.streak, members=excluded.members
-                """, (team, data["points"], data["streak"], json.dumps(members_as_str)))
+                """,
+                    (team, data["points"], data["streak"], json.dumps(members_as_str)),
+                )
     except Exception as e:
         logging.error(f"Error saving teams to database: {e}")
+
 
 def load_dictionary_from_db():
     global VALID_PHRASES, FIRST_WORDS
@@ -258,7 +273,9 @@ def load_dictionary_from_db():
 
             with sqlite3.connect(DB_PATH) as conn:
                 cur = conn.cursor()
-                for full_phrase, w1, w2 in cur.execute("SELECT full_phrase, word1, word2 FROM phrases"):
+                for full_phrase, w1, w2 in cur.execute(
+                    "SELECT full_phrase, word1, word2 FROM phrases"
+                ):
                     VALID_PHRASES.add(full_phrase)
                     FIRST_WORDS.setdefault(w1, set()).add(w2)
         except Exception as e:
@@ -266,6 +283,7 @@ def load_dictionary_from_db():
     else:
         logging.info("Database file not found.")
         VALID_PHRASES = {}
+
 
 def add_phrase_to_db(phrase):
     try:
@@ -277,15 +295,19 @@ def add_phrase_to_db(phrase):
         freq = word_frequency(phrase, "vi", wordlist="best")
         try:
             with sqlite3.connect(DB_PATH) as conn:
-                conn.execute("""
+                conn.execute(
+                    """
                     INSERT OR IGNORE INTO phrases (word1, word2, full_phrase, freq)
                     VALUES (?, ?, ?, ?)
-                """, (w1, w2, phrase, freq))
+                """,
+                    (w1, w2, phrase, freq),
+                )
             return True
         except:
             return False
     except Exception as e:
         logging.error(f"Error adding phrase to database: {e}")
+
 
 def remove_phrase_from_db(phrase):
     try:
@@ -304,20 +326,23 @@ def remove_phrase_from_db(phrase):
     except Exception as e:
         logging.error(f"Error removing phrase from database: {e}")
         return False
-    
+
+
 def get_phrase_freq(phrase: str) -> float:
     with sqlite3.connect(DB_PATH) as conn:
         cur = conn.cursor()
         cur.execute("SELECT freq FROM phrases WHERE full_phrase = ?", (phrase,))
         row = cur.fetchone()
         return row[0] if row else 0.0
-    
+
+
 def precompute_trap_scores():
     global WORD_TRAP_SCORES
     WORD_TRAP_SCORES.clear()
     for word, next_words_set in FIRST_WORDS.items():
         WORD_TRAP_SCORES[word] = len(next_words_set)
     logging.info(f"Precomputed trap scores for {len(WORD_TRAP_SCORES)} words.")
+
 
 # ====== INIT ======
 # Sqlite database initialization
@@ -330,6 +355,7 @@ load_hall_of_fame()
 load_user_stats()
 
 # ====== HELPERS ======
+
 
 def reset_streak_for_all(channel_id):
     state = game_state.get(channel_id) or match_state.get(channel_id)
@@ -344,14 +370,17 @@ def reset_streak_for_all(channel_id):
             user_stats[uid_str]["streak"] = 0
     save_user_stats()
 
+
 def normalize_phrase(phrase):
     return unicodedata.normalize("NFC", phrase.strip().lower())
+
 
 def is_valid_vietnamese_phrase(phrase):
     words = phrase.split()
     if len(words) != 2:
         return False
     return all(c.isalpha() or c.isspace() for c in phrase)
+
 
 def check_word_in_online(word):
     encoded_word = quote(word)
@@ -362,20 +391,36 @@ def check_word_in_online(word):
     # Wikipedia
     url_wikipedia = f"https://vi.wikipedia.org/wiki/{encoded_word}"
 
+    headers = {
+        "User-Agent": "Mozilla/5.0 (compatible; Noi-Tu/1.0; +https://github.com/EndermanPC/Noi-Tu)"
+    }
+
     try:
         # Check Tratu Soha
-        response = requests.get(url_tratu, timeout=5)
-        if response.status_code != 404 and "(Trang này hiện chưa có gì)" not in response.text:
+        response = requests.get(url_tratu, timeout=5, headers=headers)
+        if (
+            response.status_code != 404
+            and "(Trang này hiện chưa có gì)" not in response.text
+        ):
             return True
-        
+
         # Check Wiktionary
-        response = requests.get(url_wiktionary, timeout=5)
-        if response.status_code != 404 and "Wiktionary tiếng Việt chưa có mục từ nào có tên này." not in response.text:
+        response = requests.get(url_wiktionary, timeout=5, headers=headers)
+        if (
+            response.status_code != 404
+            and "Wiktionary tiếng Việt chưa có mục từ nào có tên này."
+            not in response.text
+            and word.lower() in response.text.lower()
+        ):
             return True
 
         # Check Wikipedia
-        response = requests.get(url_wikipedia, timeout=5)
-        if response.status_code != 404 and "Wikipedia hiện chưa có bài viết nào với tên này." not in response.text:
+        response = requests.get(url_wikipedia, timeout=5, headers=headers)
+        if (
+            response.status_code != 404
+            and "Wikipedia hiện chưa có bài viết nào với tên này." not in response.text
+            and word.lower() in response.text.lower()
+        ):
             return True
 
         return False
@@ -383,7 +428,10 @@ def check_word_in_online(word):
         logging.error(f"Error accessing online dictionaries: {e}")
         return False
 
-def select_balanced_start_phrase(max_samples=50, forced_win_lookahead=5, time_budget=0.3):
+
+def select_balanced_start_phrase(
+    max_samples=50, forced_win_lookahead=5, time_budget=0.3
+):
     start_time = time.monotonic()
     candidates = []
     all_phrases = list(VALID_PHRASES)
@@ -395,16 +443,15 @@ def select_balanced_start_phrase(max_samples=50, forced_win_lookahead=5, time_bu
         used_phrases = frozenset(f"{w1} {w2}")
         last_word = w2
         can_win, depth = insane_search(
-            last_word,
-            used_phrases,
-            set(history),
-            'bot',
-            forced_win_lookahead,
-            {}
+            last_word, used_phrases, set(history), "bot", forced_win_lookahead, {}
         )
         return can_win
 
-    while checked < max_samples and time.monotonic() - start_time < time_budget and checked < len(all_phrases):
+    while (
+        checked < max_samples
+        and time.monotonic() - start_time < time_budget
+        and checked < len(all_phrases)
+    ):
         phrase = all_phrases[checked]
         checked += 1
         w1, w2 = phrase.split()
@@ -441,18 +488,15 @@ def select_balanced_start_phrase(max_samples=50, forced_win_lookahead=5, time_bu
         attempts += 1
     return selected_phrase
 
+
 def select_start_phrase(
-    *,
-    max_samples=50,
-    forced_win_lookahead=5,
-    time_budget=0.1,
-    safety_filter=True
+    *, max_samples=50, forced_win_lookahead=5, time_budget=0.1, safety_filter=True
 ):
     if safety_filter:
         return select_balanced_start_phrase(
             max_samples=max_samples,
             forced_win_lookahead=forced_win_lookahead,
-            time_budget=time_budget
+            time_budget=time_budget,
         )
     attempts = 0
     max_attempts = 100
@@ -468,9 +512,15 @@ def select_start_phrase(
         attempts += 1
     return None
 
+
 def is_tournament(ctx_or_message):
     channel = getattr(ctx_or_message, "channel", ctx_or_message)
-    return hasattr(channel, "id") and channel.id in match_state and match_state[channel.id].get("mode") == "tournament"
+    return (
+        hasattr(channel, "id")
+        and channel.id in match_state
+        and match_state[channel.id].get("mode") == "tournament"
+    )
+
 
 def check_auto_play(user_id: str):
     now = datetime.utcnow()
@@ -484,6 +534,7 @@ def check_auto_play(user_id: str):
     last_action_time[user_id] = now
     return "ok"
 
+
 def phrase_score(phrase):
     freq = get_phrase_freq(phrase)
     if freq == 0.0:
@@ -492,6 +543,7 @@ def phrase_score(phrase):
         return 1.0
     else:
         return round(min(1.0, freq / 1e-5), 3)
+
 
 def classify_phrase(freq):
     if freq == 0.0:
@@ -505,17 +557,21 @@ def classify_phrase(freq):
     else:
         return "🔵 Phổ biến"
 
-def is_rare_phrase_robust(phrase, lang='vi', phrase_thresh=1e-7, word_thresh=1e-6):
+
+def is_rare_phrase_robust(phrase, lang="vi", phrase_thresh=1e-7, word_thresh=1e-6):
     freq_phrase = get_phrase_freq(phrase)
     words = phrase.strip().lower().split()
     if len(words) != 2:
         return True, freq_phrase, [], 0.0, ""
-    freq1 = word_frequency(words[0], lang, wordlist='best')
-    freq2 = word_frequency(words[1], lang, wordlist='best')
-    is_rare = (freq_phrase < phrase_thresh) and (freq1 < word_thresh or freq2 < word_thresh)
+    freq1 = word_frequency(words[0], lang, wordlist="best")
+    freq2 = word_frequency(words[1], lang, wordlist="best")
+    is_rare = (freq_phrase < phrase_thresh) and (
+        freq1 < word_thresh or freq2 < word_thresh
+    )
     score = phrase_score(phrase)
     label = classify_phrase(freq_phrase)
     return is_rare, freq_phrase, [freq1, freq2], score, label
+
 
 def mutual_exclusion_check(channel_id):
     # Only one mode can exist per channel
@@ -524,31 +580,46 @@ def mutual_exclusion_check(channel_id):
     if channel_id in match_state:
         del match_state[channel_id]
 
+
 def to_roman(n):
     roman_map = [
-        (1000, 'M'), (900, 'CM'), (500, 'D'), (400, 'CD'),
-        (100, 'C'), (90, 'XC'), (50, 'L'), (40, 'XL'),
-        (10, 'X'), (9, 'IX'), (5, 'V'), (4, 'IV'), (1, 'I')
+        (1000, "M"),
+        (900, "CM"),
+        (500, "D"),
+        (400, "CD"),
+        (100, "C"),
+        (90, "XC"),
+        (50, "L"),
+        (40, "XL"),
+        (10, "X"),
+        (9, "IX"),
+        (5, "V"),
+        (4, "IV"),
+        (1, "I"),
     ]
-    result = ''
-    for (arabic, roman) in roman_map:
+    result = ""
+    for arabic, roman in roman_map:
         while n >= arabic:
             result += roman
             n -= arabic
     return result
 
+
 # ====== BOT EVENTS ======
+
 
 @bot.event
 async def on_ready():
     print(f"Logged in as {bot.user.name}")
     await bot.change_presence(activity=discord.Game(name="Nối Từ - NTstart để chơi!"))
 
+
 @bot.event
 async def on_command_error(ctx, error):
     if isinstance(error, commands.CommandNotFound):
         return
     raise error
+
 
 @bot.event
 async def on_message(message):
@@ -576,17 +647,21 @@ async def on_message(message):
         words = text.split()
         if len(words) != 2:
             return
-        
+
         author_id_str = str(message.author.id)
 
         # Ban and surrender validation
         if author_id_str in banned_users:
             await message.add_reaction("🚫")
-            await message.channel.send("🚫 Bạn đã bị cấm chơi trò này. Vui lòng bổ túc một khóa Tiếng Việt để tham gia.")
+            await message.channel.send(
+                "🚫 Bạn đã bị cấm chơi trò này. Vui lòng bổ túc một khóa Tiếng Việt để tham gia."
+            )
             return
         if "surrender_votes" in state and author_id_str in state["surrender_votes"]:
             await message.add_reaction("🚫")
-            await message.channel.send("🚫 Bạn đã đầu hàng và không thể chơi cho đến khi bắt đầu trò chơi mới.")
+            await message.channel.send(
+                "🚫 Bạn đã đầu hàng và không thể chơi cho đến khi bắt đầu trò chơi mới."
+            )
             return
 
         user_stats.setdefault(author_id_str, {"rank": 0, "solan": 0, "streak": 0})
@@ -608,7 +683,9 @@ async def on_message(message):
             # Consecutive turns check (except single-player)
             if author_id_str == state.get("last_player_id"):
                 if len(state["players"]) < 2:
-                    await message.channel.send("⚠️ Chế độ luyện tập. Chờ người khác để vào xếp hạng.")
+                    await message.channel.send(
+                        "⚠️ Chế độ luyện tập. Chờ người khác để vào xếp hạng."
+                    )
                     pass
                 else:
                     await message.add_reaction("⏭️")
@@ -632,7 +709,9 @@ async def on_message(message):
         if phrase not in VALID_PHRASES:
             if not check_word_in_online(phrase):
                 await message.add_reaction("❌")
-                await message.channel.send(f"❌ Cụm từ `{phrase}` không có trong từ điển.")
+                await message.channel.send(
+                    f"❌ Cụm từ `{phrase}` không có trong từ điển."
+                )
                 user_stats[author_id_str]["streak"] = 0
                 if tournament:
                     hall_of_fame[user_team]["streak"] = 0
@@ -652,13 +731,18 @@ async def on_message(message):
                             )
                             logging.info(f"Added phrase from online: {phrase}")
                         else:
-                            await message.channel.send("❌ Lỗi khi thêm cụm từ vào từ điển.")
+                            await message.channel.send(
+                                "❌ Lỗi khi thêm cụm từ vào từ điển."
+                            )
                 except Exception as e:
                     await message.channel.send("❌ Lỗi khi thêm cụm từ vào từ điển.")
-                    logging.error(f"Error adding phrase: {e}")     
+                    logging.error(f"Error adding phrase: {e}")
 
         # Check duplicate phrase/word in history
-        history_phrases = {" ".join(state["history"][i:i+2]) for i in range(len(state["history"]) - 1)}
+        history_phrases = {
+            " ".join(state["history"][i : i + 2])
+            for i in range(len(state["history"]) - 1)
+        }
         history_words = set(state["history"])
         if phrase in history_phrases:
             await message.add_reaction("⚠️")
@@ -690,7 +774,9 @@ async def on_message(message):
         if tournament:
             hall_of_fame[user_team]["streak"] += 1
             teams = state["teams"]
-            state["current_team"] = teams[1] if state["current_team"] == teams[0] else teams[0]
+            state["current_team"] = (
+                teams[1] if state["current_team"] == teams[0] else teams[0]
+            )
 
         # Stats update
         user_stats[author_id_str]["solan"] += 1
@@ -701,20 +787,24 @@ async def on_message(message):
         for next_w in FIRST_WORDS.get(words[1], set()):
             potential_phrase = f"{words[1]} {next_w}"
             if (
-                potential_phrase in VALID_PHRASES and
-                potential_phrase not in history_phrases and
-                next_w not in history_words and
-                words[1] != next_w
+                potential_phrase in VALID_PHRASES
+                and potential_phrase not in history_phrases
+                and next_w not in history_words
+                and words[1] != next_w
             ):
                 possible_next_phrases.append(potential_phrase)
 
         # Anti-cheat
         result = check_auto_play(author_id_str)
         if result == "banned":
-            await message.channel.send(f"🚫 <@{author_id_str}> đã bị cấm vì nghi dùng auto!")
+            await message.channel.send(
+                f"🚫 <@{author_id_str}> đã bị cấm vì nghi dùng auto!"
+            )
             return
         elif result == "warning":
-            await message.channel.send("⚠️ Bạn đang chơi quá nhanh, có thể bị cấm nếu tiếp tục.")
+            await message.channel.send(
+                "⚠️ Bạn đang chơi quá nhanh, có thể bị cấm nếu tiếp tục."
+            )
 
         is_rare, freq, word_freqs, score, label = is_rare_phrase_robust(phrase)
         if score < 0.5:
@@ -726,11 +816,17 @@ async def on_message(message):
             )
             if is_rare and author_id_str not in banned_users:
                 violation_count[author_id_str] += 1
-                await message.channel.send(f"❗ **Cảnh cáo hành vi gian lận từ <@{author_id_str}>**: Cụm từ `{phrase}` có tần suất rất thấp. Tổng vi phạm là {violation_count[author_id_str]}")
+                await message.channel.send(
+                    f"❗ **Cảnh cáo hành vi gian lận từ <@{author_id_str}>**: Cụm từ `{phrase}` có tần suất rất thấp. Tổng vi phạm là {violation_count[author_id_str]}"
+                )
                 if violation_count[author_id_str] >= MAX_VIOLATIONS:
                     banned_users.add(author_id_str)
-                    user_stats[author_id_str]["rank"] = max(0, user_stats[author_id_str]["rank"] - 5)
-                    await message.channel.send(f"🚫 <@{author_id_str}> đã bị **cấm tạm thời** vì gian lận!")
+                    user_stats[author_id_str]["rank"] = max(
+                        0, user_stats[author_id_str]["rank"] - 5
+                    )
+                    await message.channel.send(
+                        f"🚫 <@{author_id_str}> đã bị **cấm tạm thời** vì gian lận!"
+                    )
                     # If no possible next phrases, award win to previous player
                     if not possible_next_phrases:
                         # Find previous player (before banned user)
@@ -740,11 +836,15 @@ async def on_message(message):
                             prev_player_id = state["players"][-2]
                         if prev_player_id:
                             prev_player_id_str = str(prev_player_id)
-                            user_stats.setdefault(prev_player_id_str, {"rank": 0, "solan": 0, "streak": 0})
+                            user_stats.setdefault(
+                                prev_player_id_str, {"rank": 0, "solan": 0, "streak": 0}
+                            )
                             bonus = 1
                             if user_stats[prev_player_id_str]["streak"] >= 5:
                                 bonus += 1
-                                bonus += (user_stats[prev_player_id_str]["streak"] // 5) - 1
+                                bonus += (
+                                    user_stats[prev_player_id_str]["streak"] // 5
+                                ) - 1
                             user_stats[prev_player_id_str]["rank"] += bonus
                             user_stats[prev_player_id_str]["streak"] = 0
                             reset_streak_for_all(message.channel.id)
@@ -765,7 +865,15 @@ async def on_message(message):
                         save_user_stats()
                         state["possible_phrases"] = possible_next_phrases
                         if state.get("with_bot"):
-                            bot_choice = await choose_bot_phrase(state["last_word"], set(state["history"]), {" ".join(state["history"][i:i+2]) for i in range(len(state["history"]) - 1)}, state.get("bot_difficulty", "medium"))
+                            bot_choice = await choose_bot_phrase(
+                                state["last_word"],
+                                set(state["history"]),
+                                {
+                                    " ".join(state["history"][i : i + 2])
+                                    for i in range(len(state["history"]) - 1)
+                                },
+                                state.get("bot_difficulty", "medium"),
+                            )
                             if bot_choice:
                                 _, bot_next = bot_choice.split()
                                 state["history"].append(bot_next)
@@ -776,24 +884,36 @@ async def on_message(message):
                                 for next_w in FIRST_WORDS.get(bot_next, set()):
                                     potential = f"{bot_next} {next_w}"
                                     if (
-                                        potential in VALID_PHRASES and
-                                        potential not in {" ".join(state["history"][i:i+2]) for i in range(len(state["history"]) - 1)} and
-                                        next_w not in set(state["history"]) and
-                                        bot_next != next_w
+                                        potential in VALID_PHRASES
+                                        and potential
+                                        not in {
+                                            " ".join(state["history"][i : i + 2])
+                                            for i in range(len(state["history"]) - 1)
+                                        }
+                                        and next_w not in set(state["history"])
+                                        and bot_next != next_w
                                     ):
                                         new_possible.append(potential)
                                 state["possible_phrases"] = new_possible
-                                await message.channel.send(f"🤖 Bot nối: `{bot_choice}`")
+                                await message.channel.send(
+                                    f"🤖 Bot nối: `{bot_choice}`"
+                                )
                                 if not new_possible:
-                                    await message.channel.send("😅 Bot đã chặn bạn. Chúc may mắn lần sau!")
+                                    await message.channel.send(
+                                        "😅 Bot đã chặn bạn. Chúc may mắn lần sau!"
+                                    )
                                     user_id = str(message.author.id)
-                                    user_stats.setdefault(user_id, {"rank":0,"solan":0,"streak":0})
+                                    user_stats.setdefault(
+                                        user_id, {"rank": 0, "solan": 0, "streak": 0}
+                                    )
                                     user_stats[user_id]["streak"] = 0
                                     reset_streak_for_all(message.channel.id)
                                     save_user_stats()
                                     del game_state[message.channel.id]
                                     return
-                        await message.channel.send(f"🤣 Còn {len(new_possible) if state.get('with_bot') else len(possible_next_phrases)} từ để nối tiếp.")
+                        await message.channel.send(
+                            f"🤣 Còn {len(new_possible) if state.get('with_bot') else len(possible_next_phrases)} từ để nối tiếp."
+                        )
                     return
 
         # Win detection
@@ -802,11 +922,17 @@ async def on_message(message):
                 # The winning team is the current (before switch)
                 winner_team = None
                 teams = state["teams"]
-                winner_team = teams[1] if state["current_team"] == teams[0] else teams[0]
+                winner_team = (
+                    teams[1] if state["current_team"] == teams[0] else teams[0]
+                )
                 await end_match(message, winner_team)
                 return
             # Pratice mode
-            if len(state["players"]) < 2 or (len(state["players"]) == 2 and str(bot.user.id) in state["players"] and len(state["history"]) <= 3):
+            if len(state["players"]) < 2 or (
+                len(state["players"]) == 2
+                and str(bot.user.id) in state["players"]
+                and len(state["history"]) <= 3
+            ):
                 await message.channel.send(
                     f"🏁 Không còn từ để nối!\n🎉 Người chơi <@{author_id_str}> thắng!"
                 )
@@ -834,7 +960,15 @@ async def on_message(message):
             save_user_stats()
             state["possible_phrases"] = possible_next_phrases
             if state.get("with_bot"):
-                bot_choice = await choose_bot_phrase(state["last_word"], set(state["history"]), {" ".join(state["history"][i:i+2]) for i in range(len(state["history"]) - 1)}, state.get("bot_difficulty", "medium"))
+                bot_choice = await choose_bot_phrase(
+                    state["last_word"],
+                    set(state["history"]),
+                    {
+                        " ".join(state["history"][i : i + 2])
+                        for i in range(len(state["history"]) - 1)
+                    },
+                    state.get("bot_difficulty", "medium"),
+                )
                 if bot_choice:
                     _, bot_next = bot_choice.split()
                     state["history"].append(bot_next)
@@ -845,24 +979,35 @@ async def on_message(message):
                     for next_w in FIRST_WORDS.get(bot_next, set()):
                         potential = f"{bot_next} {next_w}"
                         if (
-                            potential in VALID_PHRASES and
-                            potential not in {" ".join(state["history"][i:i+2]) for i in range(len(state["history"]) - 1)} and
-                            next_w not in set(state["history"]) and
-                            bot_next != next_w
+                            potential in VALID_PHRASES
+                            and potential
+                            not in {
+                                " ".join(state["history"][i : i + 2])
+                                for i in range(len(state["history"]) - 1)
+                            }
+                            and next_w not in set(state["history"])
+                            and bot_next != next_w
                         ):
                             new_possible.append(potential)
                     state["possible_phrases"] = new_possible
                     await message.channel.send(f"🤖 Bot nối: `{bot_choice}`")
                     if not new_possible:
-                        await message.channel.send("😅 Bot đã chặn bạn. Chúc may mắn lần sau!")
+                        await message.channel.send(
+                            "😅 Bot đã chặn bạn. Chúc may mắn lần sau!"
+                        )
                         user_id = str(message.author.id)
-                        user_stats.setdefault(user_id, {"rank":0,"solan":0,"streak":0})
+                        user_stats.setdefault(
+                            user_id, {"rank": 0, "solan": 0, "streak": 0}
+                        )
                         user_stats[user_id]["streak"] = 0
                         reset_streak_for_all(message.channel.id)
                         save_user_stats()
                         del game_state[message.channel.id]
                         return
-            await message.channel.send(f"🤣 Còn {len(new_possible) if state.get('with_bot') else len(possible_next_phrases)} từ để nối tiếp.")
+            await message.channel.send(
+                f"🤣 Còn {len(new_possible) if state.get('with_bot') else len(possible_next_phrases)} từ để nối tiếp."
+            )
+
 
 # --- BOT PLAY SYSTEM ---
 def get_valid_next_phrases(last_word, used_phrases, history_words):
@@ -870,19 +1015,20 @@ def get_valid_next_phrases(last_word, used_phrases, history_words):
     for next_w in FIRST_WORDS.get(last_word, set()):
         potential = f"{last_word} {next_w}"
         if (
-            potential in VALID_PHRASES and
-            potential not in used_phrases and
-            next_w not in history_words and
-            last_word != next_w
+            potential in VALID_PHRASES
+            and potential not in used_phrases
+            and next_w not in history_words
+            and last_word != next_w
         ):
             candidates.append(potential)
     return candidates
+
 
 def evaluate_heuristic(last_word, candidates):
     # Weights to balance elements, can be tweaked later
     W_MOBILITY = 0.3
     W_TRAP = 0.5
-    W_RARITY = 10000.0 # Very low frequency, need large weighting
+    W_RARITY = 10000.0  # Very low frequency, need large weighting
 
     # Mobility: Number of possible moves
     mobility_score = len(candidates)
@@ -893,26 +1039,33 @@ def evaluate_heuristic(last_word, candidates):
 
     # Rarity: Frequency of the final word
     # The rarer the word (lower frequency), the more difficult it is for the opponent
-    rarity_score = word_frequency(last_word, 'vi', wordlist='best')
+    rarity_score = word_frequency(last_word, "vi", wordlist="best")
 
     # Summary formula:
     # - More options (mobility) the better
     # - More safety (high trap_score) the better
     # - More rarity (low rarity_score) the better
-    final_score = (W_MOBILITY * mobility_score) + (W_TRAP * trap_score) - (W_RARITY * rarity_score)
-    
+    final_score = (
+        (W_MOBILITY * mobility_score)
+        + (W_TRAP * trap_score)
+        - (W_RARITY * rarity_score)
+    )
+
     # Normalize the scores to a small range so as not to affect the absolute win/loss scores (-1 and 1)
     return final_score / 100.0
 
+
 def negamax(last_word, used_phrases, history_words, depth, alpha, beta, turn, memo):
-    # Check the Transposition Table using Zobrist key 
+    # Check the Transposition Table using Zobrist key
     key = _zobrist_key(last_word, frozenset(used_phrases), turn)
     if key in memo and memo[key]["depth"] >= depth:
         return memo[key]["value"]
 
     # Check the end state (win/lose)
     # This is the most important stopping point of the recursion.
-    candidates = get_valid_next_phrases(last_word, frozenset(used_phrases), history_words)
+    candidates = get_valid_next_phrases(
+        last_word, frozenset(used_phrases), history_words
+    )
     if not candidates:
         # If it is the current player's turn and he does not make a move, he loses.
         # A score of -1 represents a certain loss.
@@ -931,22 +1084,33 @@ def negamax(last_word, used_phrases, history_words, depth, alpha, beta, turn, me
     # Prioritize moves that limit your opponent's options
     def ordering_score(phrase):
         _, next_word = phrase.split()
-        opp_candidates = get_valid_next_phrases(next_word, frozenset(used_phrases | {phrase}), history_words | {next_word})
+        opp_candidates = get_valid_next_phrases(
+            next_word, frozenset(used_phrases | {phrase}), history_words | {next_word}
+        )
         return len(opp_candidates)
-    
+
     candidates.sort(key=ordering_score)
 
     # Loop through possible moves
     for phrase in candidates:
         _, next_word = phrase.split()
-        
+
         # Create new state for next move
         new_used_phrases = used_phrases | {phrase}
         new_history_words = history_words | {next_word}
 
         # Recursively call Negamax for next move
         # The leading minus sign is the core of the Negamax algorithm
-        val = -negamax(next_word, new_used_phrases, new_history_words, depth - 1, -beta, -alpha, next_turn, memo)
+        val = -negamax(
+            next_word,
+            new_used_phrases,
+            new_history_words,
+            depth - 1,
+            -beta,
+            -alpha,
+            next_turn,
+            memo,
+        )
 
         # Update best value and perform Alpha-Beta pruning
         if val > best_value:
@@ -959,6 +1123,7 @@ def negamax(last_word, used_phrases, history_words, depth, alpha, beta, turn, me
     memo[key] = {"value": best_value, "depth": depth}
     return best_value
 
+
 def insane_search(last_word, used_phrases, history_words, turn, max_depth, memo):
     key = (last_word, tuple(sorted(used_phrases)), turn)
     if key in memo:
@@ -969,20 +1134,29 @@ def insane_search(last_word, used_phrases, history_words, turn, max_depth, memo)
 
     next_phrases = get_valid_next_phrases(last_word, used_phrases, history_words)
     if not next_phrases:
-        if turn == 'bot':
+        if turn == "bot":
             result = (False, None)
         else:
             result = (True, 0)
         memo[key] = result
         return result
 
-    if turn == 'bot':
+    if turn == "bot":
         best_depth = None
         for phrase in next_phrases:
             _, next_word = phrase.split()
-            new_used = set(used_phrases); new_used.add(phrase)
-            new_history_words = set(history_words); new_history_words.add(next_word)
-            opp_can_win, opp_depth = insane_search(next_word, frozenset(new_used), new_history_words, 'player', max_depth - 1, memo)
+            new_used = set(used_phrases)
+            new_used.add(phrase)
+            new_history_words = set(history_words)
+            new_history_words.add(next_word)
+            opp_can_win, opp_depth = insane_search(
+                next_word,
+                frozenset(new_used),
+                new_history_words,
+                "player",
+                max_depth - 1,
+                memo,
+            )
             if opp_can_win:
                 depth = (opp_depth + 1) if opp_depth is not None else 1
                 if best_depth is None or depth < best_depth:
@@ -996,9 +1170,18 @@ def insane_search(last_word, used_phrases, history_words, turn, max_depth, memo)
         worst_depth = None
         for phrase in next_phrases:
             _, next_word = phrase.split()
-            new_used = set(used_phrases); new_used.add(phrase)
-            new_history_words = set(history_words); new_history_words.add(next_word)
-            bot_can_win, bot_depth = insane_search(next_word, frozenset(new_used), new_history_words, 'bot', max_depth - 1, memo)
+            new_used = set(used_phrases)
+            new_used.add(phrase)
+            new_history_words = set(history_words)
+            new_history_words.add(next_word)
+            bot_can_win, bot_depth = insane_search(
+                next_word,
+                frozenset(new_used),
+                new_history_words,
+                "bot",
+                max_depth - 1,
+                memo,
+            )
             if not bot_can_win:
                 memo[key] = (False, None)
                 return (False, None)
@@ -1009,17 +1192,22 @@ def insane_search(last_word, used_phrases, history_words, turn, max_depth, memo)
         memo[key] = (True, worst_depth)
         return (True, worst_depth)
 
+
 def choose_insane_move(state, max_depth=10, time_budget=0.5):
     start = time.monotonic()
     last_word = state["last_word"]
     history_list = list(state["history"])
-    used_phrases = frozenset(" ".join(history_list[i:i+2]) for i in range(len(history_list) - 1))
+    used_phrases = frozenset(
+        " ".join(history_list[i : i + 2]) for i in range(len(history_list) - 1)
+    )
     history_words = set(history_list)
 
     # quick shallow lookahead: find win in <=4 turns
     for shallow in range(2, 5):  # depth 2..4
         memo = {}
-        can_win, win_depth = insane_search(last_word, used_phrases, history_words, 'bot', shallow, memo)
+        can_win, win_depth = insane_search(
+            last_word, used_phrases, history_words, "bot", shallow, memo
+        )
         if can_win:
             # Find specific moves that lead to shortest win
             candidates = get_valid_next_phrases(last_word, used_phrases, history_words)
@@ -1027,9 +1215,18 @@ def choose_insane_move(state, max_depth=10, time_budget=0.5):
             best_sub_depth = None
             for phrase in candidates:
                 _, next_word = phrase.split()
-                new_used = set(used_phrases); new_used.add(phrase)
-                new_history_words = set(history_words); new_history_words.add(next_word)
-                opp_can_win, opp_depth = insane_search(next_word, frozenset(new_used), new_history_words, 'player', shallow - 1, memo)
+                new_used = set(used_phrases)
+                new_used.add(phrase)
+                new_history_words = set(history_words)
+                new_history_words.add(next_word)
+                opp_can_win, opp_depth = insane_search(
+                    next_word,
+                    frozenset(new_used),
+                    new_history_words,
+                    "player",
+                    shallow - 1,
+                    memo,
+                )
                 if opp_can_win:
                     depth = (opp_depth + 1) if opp_depth is not None else 1
                     if best_sub_depth is None or depth < best_sub_depth:
@@ -1048,19 +1245,34 @@ def choose_insane_move(state, max_depth=10, time_budget=0.5):
             break
         memo = {}
         candidates = get_valid_next_phrases(last_word, used_phrases, history_words)
+
         # ordering: try moves that narrow down your options first
         def opponent_options(phrase):
             _, next_word = phrase.split()
-            tmp_used = set(used_phrases); tmp_used.add(phrase)
-            tmp_history = set(history_words); tmp_history.add(next_word)
-            return len(get_valid_next_phrases(next_word, frozenset(tmp_used), tmp_history))
+            tmp_used = set(used_phrases)
+            tmp_used.add(phrase)
+            tmp_history = set(history_words)
+            tmp_history.add(next_word)
+            return len(
+                get_valid_next_phrases(next_word, frozenset(tmp_used), tmp_history)
+            )
+
         candidates.sort(key=opponent_options)  # reduce competitor selection
 
         for phrase in candidates:
             _, next_word = phrase.split()
-            new_used = set(used_phrases); new_used.add(phrase)
-            new_history_words = set(history_words); new_history_words.add(next_word)
-            opp_can_win, opp_depth = insane_search(next_word, frozenset(new_used), new_history_words, 'player', depth - 1, memo)
+            new_used = set(used_phrases)
+            new_used.add(phrase)
+            new_history_words = set(history_words)
+            new_history_words.add(next_word)
+            opp_can_win, opp_depth = insane_search(
+                next_word,
+                frozenset(new_used),
+                new_history_words,
+                "player",
+                depth - 1,
+                memo,
+            )
             if opp_can_win:
                 win_depth = (opp_depth + 1) if opp_depth is not None else 1
                 if best_win_depth is None or win_depth < best_win_depth:
@@ -1070,15 +1282,19 @@ def choose_insane_move(state, max_depth=10, time_budget=0.5):
             break
     return best_move
 
-async def choose_insane_move_async(state, max_depth=10, time_budget=0.5):
-    return await asyncio.to_thread(
-        choose_insane_move,
-        state,
-        max_depth,
-        time_budget
-    )
 
-def choose_strategic_move(last_word, used_phrases, history_words, candidates, depth, principal_variation_move=None):
+async def choose_insane_move_async(state, max_depth=10, time_budget=0.5):
+    return await asyncio.to_thread(choose_insane_move, state, max_depth, time_budget)
+
+
+def choose_strategic_move(
+    last_word,
+    used_phrases,
+    history_words,
+    candidates,
+    depth,
+    principal_variation_move=None,
+):
     best_moves = []
     best_score = -float("inf")
     memo = {}
@@ -1100,7 +1316,7 @@ def choose_strategic_move(last_word, used_phrases, history_words, candidates, de
         tmp_used = set(used_phrases) | {phrase}
         tmp_history = set(history_words) | {next_word}
         return len(get_valid_next_phrases(next_word, frozenset(tmp_used), tmp_history))
-    
+
     other_candidates.sort(key=opponent_options)
     sorted_candidates.extend(other_candidates)
     # --- END MOVE ORDERING ---
@@ -1110,8 +1326,17 @@ def choose_strategic_move(last_word, used_phrases, history_words, candidates, de
         new_used = used_phrases | {phrase}
         new_history = history_words | {next_word}
 
-        score = -negamax(next_word, frozenset(new_used), new_history, depth - 1, -float("inf"), float("inf"), "player", memo)
-        
+        score = -negamax(
+            next_word,
+            frozenset(new_used),
+            new_history,
+            depth - 1,
+            -float("inf"),
+            float("inf"),
+            "player",
+            memo,
+        )
+
         if score > best_score:
             best_score = score
             best_moves = [phrase]
@@ -1120,10 +1345,13 @@ def choose_strategic_move(last_word, used_phrases, history_words, candidates, de
 
     return random.choice(best_moves) if best_moves else None
 
+
 async def choose_bot_phrase(last_word, history_words, history_phrases, difficulty):
     history_words_set = set(history_words)
     history_phrases_set = frozenset(history_phrases)
-    candidates = get_valid_next_phrases(last_word, history_phrases_set, history_words_set)
+    candidates = get_valid_next_phrases(
+        last_word, history_phrases_set, history_words_set
+    )
     if not candidates:
         return None
 
@@ -1133,16 +1361,19 @@ async def choose_bot_phrase(last_word, history_words, history_phrases, difficult
     elif difficulty == "hard":
         candidates.sort(key=lambda p: get_phrase_freq(p))
         return candidates[0] if candidates else None
-    
+
     elif difficulty.startswith("insane"):
         # --- LOGIC IDDFS (Iterative Deepening) ---
         best_move_overall = None
-        
+
         # Set maximum time and depth
-        if difficulty == "insane-min": time_limit, max_depth = 1.5, 6
-        elif difficulty == "insane-mid": time_limit, max_depth = 3.0, 8
-        else: time_limit, max_depth = 5.0, 12
-        
+        if difficulty == "insane-min":
+            time_limit, max_depth = 1.5, 6
+        elif difficulty == "insane-mid":
+            time_limit, max_depth = 3.0, 8
+        else:
+            time_limit, max_depth = 5.0, 12
+
         start_time = time.monotonic()
 
         # Deepening loop
@@ -1151,7 +1382,7 @@ async def choose_bot_phrase(last_word, history_words, history_phrases, difficult
             if time_spent >= time_limit:
                 # logging.info(f"IDDFS: Time limit reached. Stopping at depth {depth-1}.")
                 break
-            
+
             remaining_time = time_limit - time_spent
             # logging.info(f"IDDFS: Starting search at depth {depth} with {remaining_time:.2f}s remaining.")
 
@@ -1161,10 +1392,14 @@ async def choose_bot_phrase(last_word, history_words, history_phrases, difficult
                 current_best_move = await asyncio.wait_for(
                     asyncio.to_thread(
                         choose_strategic_move,
-                        last_word, history_phrases_set, history_words_set,
-                        candidates, depth, best_move_overall
+                        last_word,
+                        history_phrases_set,
+                        history_words_set,
+                        candidates,
+                        depth,
+                        best_move_overall,
                     ),
-                    timeout=remaining_time
+                    timeout=remaining_time,
                 )
 
                 if current_best_move:
@@ -1173,11 +1408,11 @@ async def choose_bot_phrase(last_word, history_words, history_phrases, difficult
                 else:
                     # logging.warning(f"IDDFS: Search at depth {depth} returned no move.")
                     break
-            
+
             except asyncio.TimeoutError:
                 # logging.info(f"IDDFS: Search at depth {depth} timed out.")
                 break
-        
+
         # Returns the best move from the last completed loop
         if best_move_overall:
             return best_move_overall
@@ -1189,6 +1424,7 @@ async def choose_bot_phrase(last_word, history_words, history_phrases, difficult
     else:
         return random.choice(candidates)
 
+
 # ====== BOT COMMANDS ======
 @bot.command()
 async def ping(ctx):
@@ -1196,13 +1432,14 @@ async def ping(ctx):
     latency = round(bot.latency * 1000)
     await ctx.send(f"🏓 Pong! Latency: {latency}ms")
 
+
 # --- HELP/RULES ---
 @bot.command(name="rule")
 async def show_rules(ctx):
     embed = discord.Embed(
         title="📚 Luật chơi Nối Từ",
         description="**Người chơi phải nối các cụm từ có nghĩa theo luật sau:**",
-        color=discord.Color.blue()
+        color=discord.Color.blue(),
     )
 
     embed.add_field(
@@ -1216,7 +1453,7 @@ async def show_rules(ctx):
             "6. Lệnh dừng game: `NTstop` (chỉ người khởi tạo game dùng được).\n"
             "7. Lệnh đầu hàng: `NTsurrender` để chấp nhận thua."
         ),
-        inline=False
+        inline=False,
     )
 
     embed.add_field(
@@ -1230,7 +1467,7 @@ async def show_rules(ctx):
             "6. Thắng liên tiếp 3 trận sẽ nhận thêm bonus.\n"
             "7. Lệnh `NTstop_match` chỉ có Admin sử dụng để dừng trận."
         ),
-        inline=False
+        inline=False,
     )
 
     embed.add_field(
@@ -1243,7 +1480,7 @@ async def show_rules(ctx):
             "- Một mùa giải kéo dài 1 tháng, sau đó reset xếp hạng (bao gồm cả xếp hạng cá nhân và xếp hạng đội).\n"
             "- Tất cả dữ liệu được lưu tự động. Hành vi gian lận sẽ bị xử lý. Cấm vì lý do gian lận sẽ bị trừ 5 điểm rank và reset số lượt nối."
         ),
-        inline=False
+        inline=False,
     )
 
     embed.add_field(
@@ -1252,10 +1489,14 @@ async def show_rules(ctx):
             "- Xem thông tin trận đấu hiện tại: `NTinfo`."
             "- Chơi với bot: `NTstart_bot <difficulty>` (có 3 độ khó: easy, medium, hard, insane-min, insane-mid, insane-max).\n"
         ),
-        inline=False
+        inline=False,
     )
-    embed.set_footer(text=f"Yêu cầu bởi {ctx.author.display_name}", icon_url=ctx.author.avatar.url if ctx.author.avatar else None)
+    embed.set_footer(
+        text=f"Yêu cầu bởi {ctx.author.display_name}",
+        icon_url=ctx.author.avatar.url if ctx.author.avatar else None,
+    )
     await ctx.send(embed=embed)
+
 
 # --- ADMIN DICTIONARY MANAGEMENT ---
 @bot.command()
@@ -1283,6 +1524,7 @@ async def add_word(ctx, *, phrase: str):
         await ctx.send("❌ Lỗi khi thêm cụm từ vào từ điển.")
         logging.error(f"Error adding phrase: {e}")
 
+
 @bot.command()
 @commands.cooldown(1, 5, commands.BucketType.user)
 async def remove_word(ctx, *, phrase: str):
@@ -1306,6 +1548,7 @@ async def remove_word(ctx, *, phrase: str):
         await ctx.send("❌ Lỗi khi xóa cụm từ khỏi từ điển.")
         logging.error(f"Error removing phrase: {e}")
 
+
 @bot.command()
 @commands.cooldown(1, 5, commands.BucketType.user)
 async def reload_dict(ctx):
@@ -1314,6 +1557,7 @@ async def reload_dict(ctx):
         return
     load_dictionary_from_db()
     await ctx.send(f"✅ Đã tải lại từ điển, có {len(VALID_PHRASES)} cụm từ.")
+
 
 @bot.command()
 @commands.cooldown(1, 5, commands.BucketType.user)
@@ -1328,6 +1572,7 @@ async def reload_rank(ctx):
         await ctx.send("❌ Lỗi khi tải lại danh sách xếp hạng.")
         logging.error(f"Error reloading rank file: {e}")
 
+
 @bot.command()
 @commands.cooldown(1, 5, commands.BucketType.user)
 async def reload_hall_of_fame(ctx):
@@ -1340,6 +1585,7 @@ async def reload_hall_of_fame(ctx):
     except Exception as e:
         await ctx.send("❌ Lỗi khi tải lại danh sách đội.")
         logging.error(f"Error reloading team file: {e}")
+
 
 # --- ADMIN MATCH/PLAYER MANAGEMENT ---
 @bot.command()
@@ -1367,6 +1613,7 @@ async def set_winner(ctx, member: discord.Member):
     del game_state[ctx.channel.id]
     await ctx.send(f"🏆 Đã đặt <@{uid_str}> là người thắng với +{bonus} điểm.")
 
+
 @bot.command()
 @commands.cooldown(1, 5, commands.BucketType.user)
 async def set_winner_team(ctx, winner_team: str):
@@ -1374,6 +1621,7 @@ async def set_winner_team(ctx, winner_team: str):
         await ctx.send("🚫 Bạn không có quyền sử dụng lệnh này.")
         return
     await end_match(ctx, winner_team, surrender=False)
+
 
 @bot.command()
 @commands.cooldown(1, 5, commands.BucketType.user)
@@ -1393,6 +1641,7 @@ async def set_rank(ctx, member: discord.Member, rank: int):
     save_user_stats()
     await ctx.send(f"✅ Đã đặt điểm xếp hạng của <@{uid_str}> thành {rank}.")
 
+
 @bot.command()
 @commands.cooldown(1, 5, commands.BucketType.user)
 async def set_solan(ctx, member: discord.Member, solan: int):
@@ -1410,6 +1659,7 @@ async def set_solan(ctx, member: discord.Member, solan: int):
     user_stats[uid_str]["solan"] = solan
     save_user_stats()
     await ctx.send(f"✅ Đã đặt số lượt nối đúng của <@{uid_str}> thành {solan}.")
+
 
 @bot.command()
 @commands.cooldown(1, 5, commands.BucketType.user)
@@ -1429,6 +1679,7 @@ async def set_streak(ctx, member: discord.Member, streak: int):
     save_user_stats()
     await ctx.send(f"✅ Đã đặt chuỗi nối đúng của <@{uid_str}> thành {streak}.")
 
+
 @bot.command()
 @commands.cooldown(1, 5, commands.BucketType.user)
 async def set_team_streak(ctx, team_name: str, streak: int):
@@ -1444,6 +1695,7 @@ async def set_team_streak(ctx, team_name: str, streak: int):
     hall_of_fame[team_name]["streak"] = streak
     save_hall_of_fame()
     await ctx.send(f"✅ Đã đặt chuỗi nối đúng của đội **{team_name}** là {streak}.")
+
 
 @bot.command()
 @commands.cooldown(1, 5, commands.BucketType.user)
@@ -1464,7 +1716,10 @@ async def warn(ctx, member: discord.Member):
         user_stats[user_id]["rank"] = max(0, user_stats[user_id]["rank"] - 5)
         await ctx.send(f"🚫 <@{user_id}> đã bị cấm vì gian lận!")
     else:
-        await ctx.send(f"⚠️ Đã cảnh cáo <@{user_id}> về hành vi gian lận. Tổng vi phạm là {violation_count[user_id]}")
+        await ctx.send(
+            f"⚠️ Đã cảnh cáo <@{user_id}> về hành vi gian lận. Tổng vi phạm là {violation_count[user_id]}"
+        )
+
 
 @bot.command()
 @commands.cooldown(1, 5, commands.BucketType.user)
@@ -1482,6 +1737,7 @@ async def reset_warn(ctx, member: discord.Member):
     violation_count[user_id] = 0
     await ctx.send(f"✅ Đã reset cảnh cáo gian lận cho <@{user_id}>.")
 
+
 @bot.command()
 @commands.cooldown(1, 5, commands.BucketType.user)
 async def show_warn(ctx, member: discord.Member):
@@ -1496,7 +1752,10 @@ async def show_warn(ctx, member: discord.Member):
         await ctx.send("⚠️ Người dùng đã bị cấm.")
         return
     else:
-        await ctx.send(f"⚠️ Tổng vi phạm của <@{user_id}> là {violation_count[user_id]} lần.")
+        await ctx.send(
+            f"⚠️ Tổng vi phạm của <@{user_id}> là {violation_count[user_id]} lần."
+        )
+
 
 @bot.command()
 @commands.cooldown(1, 5, commands.BucketType.user)
@@ -1515,6 +1774,7 @@ async def ban(ctx, member: discord.Member):
     user_stats[user_id]["rank"] = max(0, user_stats[user_id]["rank"] - 5)
     await ctx.send(f"🚫 Đã cấm <@{user_id}> khỏi trò chơi Nối Từ.")
 
+
 @bot.command()
 @commands.cooldown(1, 5, commands.BucketType.user)
 async def unban(ctx, member: discord.Member):
@@ -1531,6 +1791,7 @@ async def unban(ctx, member: discord.Member):
     banned_users.remove(user_id)
     await ctx.send(f"✅ Đã bỏ cấm <@{user_id}> khỏi trò chơi Nối Từ.")
 
+
 @bot.command()
 @commands.cooldown(1, 5, commands.BucketType.user)
 async def show_ban(ctx, member: discord.Member):
@@ -1545,9 +1806,12 @@ async def show_ban(ctx, member: discord.Member):
         embed = discord.Embed(
             title="🚫 Danh sách người dùng bị cấm",
             description="\n".join(banned_list),
-            color=discord.Color.red()
+            color=discord.Color.red(),
         )
-        embed.set_footer(text=f"Yêu cầu bởi {ctx.author.display_name}", icon_url=ctx.author.avatar.url if ctx.author.avatar else None)
+        embed.set_footer(
+            text=f"Yêu cầu bởi {ctx.author.display_name}",
+            icon_url=ctx.author.avatar.url if ctx.author.avatar else None,
+        )
         await ctx.send(embed=embed)
     else:
         user_id = str(member.id)
@@ -1555,6 +1819,7 @@ async def show_ban(ctx, member: discord.Member):
             await ctx.send(f"🚫 <@{user_id}> hiện đang bị cấm.")
         else:
             await ctx.send(f"✅ <@{user_id}> không bị cấm.")
+
 
 # --- TEAM & TOURNAMENT ---
 @bot.command()
@@ -1575,7 +1840,10 @@ async def create_team(ctx, team_name: str, *members: discord.Member):
     member_ids = [str(m.id) for m in members]
     hall_of_fame[team_name] = {"points": 0, "streak": 0, "members": member_ids}
     save_hall_of_fame()
-    await ctx.send(f"✅ Đã tạo đội **{team_name}** với các thành viên: {', '.join(m.mention for m in members)}.")
+    await ctx.send(
+        f"✅ Đã tạo đội **{team_name}** với các thành viên: {', '.join(m.mention for m in members)}."
+    )
+
 
 @bot.command()
 @commands.cooldown(1, 5, commands.BucketType.user)
@@ -1594,7 +1862,10 @@ async def add_member(ctx, team_name: str, *members: discord.Member):
         if mid not in hall_of_fame[team_name]["members"]:
             hall_of_fame[team_name]["members"].append(mid)
     save_hall_of_fame()
-    await ctx.send(f"✅ Đã thêm {', '.join(m.mention for m in members)} vào đội **{team_name}**.")
+    await ctx.send(
+        f"✅ Đã thêm {', '.join(m.mention for m in members)} vào đội **{team_name}**."
+    )
+
 
 @bot.command()
 @commands.cooldown(1, 5, commands.BucketType.user)
@@ -1613,7 +1884,10 @@ async def remove_member(ctx, team_name: str, *members: discord.Member):
         if mid in hall_of_fame[team_name]["members"]:
             hall_of_fame[team_name]["members"].remove(mid)
     save_hall_of_fame()
-    await ctx.send(f"✅ Đã xóa {', '.join(m.mention for m in members)} khỏi đội **{team_name}**.")
+    await ctx.send(
+        f"✅ Đã xóa {', '.join(m.mention for m in members)} khỏi đội **{team_name}**."
+    )
+
 
 @bot.command()
 @commands.cooldown(1, 5, commands.BucketType.user)
@@ -1633,11 +1907,11 @@ async def start_match(ctx, team_a: str, team_b: str):
     if team_a == team_b:
         await ctx.send("⚠️ Hai đội không thể giống nhau.")
         return
-    selected_phrase = select_start_phrase(
-        safety_filter=False
-    )
+    selected_phrase = select_start_phrase(safety_filter=False)
     if not selected_phrase:
-        await ctx.send("😔 Không thể tìm được cụm từ bắt đầu có thể nối tiếp. Vui lòng thử lại hoặc thêm từ vào từ điển.")
+        await ctx.send(
+            "😔 Không thể tìm được cụm từ bắt đầu có thể nối tiếp. Vui lòng thử lại hoặc thêm từ vào từ điển."
+        )
         return
     w1, w2 = selected_phrase.split()
     mutual_exclusion_check(ctx.channel.id)
@@ -1653,14 +1927,16 @@ async def start_match(ctx, team_a: str, team_b: str):
         "surrender_votes": {team_a: set(), team_b: set()},
         "mode": "tournament",
         "possible_phrases": [
-            f"{w2} {next_w}" for next_w in FIRST_WORDS.get(w2, set())
+            f"{w2} {next_w}"
+            for next_w in FIRST_WORDS.get(w2, set())
             if f"{w2} {next_w}" in VALID_PHRASES and next_w != w1
-        ]
+        ],
     }
     await ctx.send(
         f"🏆 Trận đấu giữa **{team_a}** và **{team_b}** đã bắt đầu!\n"
         f"Cụm từ đầu: `{w1} {w2}`\nAi nối tiếp với: `{w2}`?"
     )
+
 
 @bot.command()
 @commands.cooldown(1, 5, commands.BucketType.user)
@@ -1687,10 +1963,13 @@ async def team_surrender(ctx):
         winner = [t for t in match["teams"] if t != team][0]
         await end_match(ctx, winner, surrender=True)
     else:
-        await ctx.send(f"🗳️ <@{uid_str}> đã bỏ phiếu đầu hàng ({len(match['surrender_votes'][team])}/{len(team_members)}).")
+        await ctx.send(
+            f"🗳️ <@{uid_str}> đã bỏ phiếu đầu hàng ({len(match['surrender_votes'][team])}/{len(team_members)})."
+        )
+
 
 async def end_match(source, winner_team, surrender=False):
-    channel = source.channel if hasattr(source, 'channel') else source
+    channel = source.channel if hasattr(source, "channel") else source
     match = match_state.get(channel.id)
     if not match:
         await channel.send("⚠️ Không có trận đấu nào đang diễn ra.")
@@ -1698,7 +1977,7 @@ async def end_match(source, winner_team, surrender=False):
     hall_of_fame[winner_team]["points"] += 1
     streak = hall_of_fame[winner_team]["streak"]
     bonus = 1 + (streak // 5) if streak % 5 == 0 else 1
-    hall_of_fame[winner_team]["points"] += (bonus - 1)
+    hall_of_fame[winner_team]["points"] += bonus - 1
     for uid in hall_of_fame[winner_team]["members"]:
         uid_str = str(uid)
         user_stats.setdefault(uid_str, {"rank": 0, "solan": 0, "streak": 0})
@@ -1716,9 +1995,14 @@ async def end_match(source, winner_team, surrender=False):
     save_user_stats()
     del match_state[channel.id]
     if surrender:
-        await channel.send(f"🏁 Không còn từ để nối!\n🏆 Đội **{winner_team}** thắng vì đối thủ đầu hàng! Đội và mỗi thành viên được +{bonus} điểm.")
+        await channel.send(
+            f"🏁 Không còn từ để nối!\n🏆 Đội **{winner_team}** thắng vì đối thủ đầu hàng! Đội và mỗi thành viên được +{bonus} điểm."
+        )
     else:
-        await channel.send(f"🏁 Không còn từ để nối!\n🏆 Đội **{winner_team}** thắng trận! Đội và mỗi thành viên được +{bonus} điểm.")
+        await channel.send(
+            f"🏁 Không còn từ để nối!\n🏆 Đội **{winner_team}** thắng trận! Đội và mỗi thành viên được +{bonus} điểm."
+        )
+
 
 @bot.command()
 @commands.cooldown(1, 5, commands.BucketType.user)
@@ -1740,6 +2024,7 @@ async def stop_match(ctx):
         await ctx.send("🛑 Trận đấu đã bị dừng.")
     else:
         await ctx.send("⚠️ Không có trận đấu nào đang diễn ra.")
+
 
 @bot.command()
 @commands.cooldown(1, 5, commands.BucketType.user)
@@ -1765,36 +2050,46 @@ async def team(ctx, team_name: str = None):
     embed = discord.Embed(
         title=f"Đội {team_name}",
         description=f"Điểm: {team_info['points']}, Chuỗi: {team_info['streak']}",
-        color=discord.Color.green()
+        color=discord.Color.green(),
     )
-    embed.add_field(name="Thành viên", value=", ".join(members) if members else "Không có thành viên.")
-    embed.set_footer(text=f"Yêu cầu bởi {ctx.author.display_name}", icon_url=ctx.author.avatar.url if ctx.author.avatar else None)
+    embed.add_field(
+        name="Thành viên",
+        value=", ".join(members) if members else "Không có thành viên.",
+    )
+    embed.set_footer(
+        text=f"Yêu cầu bởi {ctx.author.display_name}",
+        icon_url=ctx.author.avatar.url if ctx.author.avatar else None,
+    )
     await ctx.send(embed=embed)
+
 
 # --- NORMAL GAME COMMANDS ---
 @bot.command()
 @commands.cooldown(1, 5, commands.BucketType.user)
 async def start(ctx):
     if is_tournament(ctx):
-        await ctx.send("🚫 Không thể bắt đầu trò chơi thường khi đang có trận đấu giải đấu.")
+        await ctx.send(
+            "🚫 Không thể bắt đầu trò chơi thường khi đang có trận đấu giải đấu."
+        )
         return
     if str(ctx.author.id) in banned_users:
         await ctx.send("🚫 Bạn đã bị cấm chơi trò này.")
         return
     if not VALID_PHRASES:
-        await ctx.send("⚠️ Không có từ vựng nào được tải. Vui lòng kiểm tra file từ điển.")
+        await ctx.send(
+            "⚠️ Không có từ vựng nào được tải. Vui lòng kiểm tra file từ điển."
+        )
         return
     if ctx.channel.id in game_state or ctx.channel.id in match_state:
         await ctx.send("⚠️ Đã có trò chơi hoặc trận đấu khác đang diễn ra.")
         return
     selected_phrase = select_start_phrase(
-        max_samples=30,
-        forced_win_lookahead=5,
-        time_budget=0.1,
-        safety_filter=True
+        max_samples=30, forced_win_lookahead=5, time_budget=0.1, safety_filter=True
     )
     if not selected_phrase:
-        await ctx.send("😔 Không thể tìm được cụm từ bắt đầu có thể nối tiếp. Vui lòng thử lại hoặc thêm từ vào từ điển.")
+        await ctx.send(
+            "😔 Không thể tìm được cụm từ bắt đầu có thể nối tiếp. Vui lòng thử lại hoặc thêm từ vào từ điển."
+        )
         return
     w1, w2 = selected_phrase.split()
     mutual_exclusion_check(ctx.channel.id)
@@ -1804,13 +2099,17 @@ async def start(ctx):
         "players": [],
         "last_word": w2,
         "possible_phrases": [
-            f"{w2} {next_w}" for next_w in FIRST_WORDS.get(w2, set())
+            f"{w2} {next_w}"
+            for next_w in FIRST_WORDS.get(w2, set())
             if f"{w2} {next_w}" in VALID_PHRASES and next_w != w1
         ],
         "last_player_id": None,
-        "surrender_votes": set()
+        "surrender_votes": set(),
     }
-    await ctx.send(f"🎮 Trò chơi bắt đầu!\nCụm từ đầu: `{w1} {w2}`\nAi nối tiếp với: `{w2}`?")
+    await ctx.send(
+        f"🎮 Trò chơi bắt đầu!\nCụm từ đầu: `{w1} {w2}`\nAi nối tiếp với: `{w2}`?"
+    )
+
 
 @bot.command()
 @commands.cooldown(1, 5, commands.BucketType.user)
@@ -1839,7 +2138,9 @@ async def surrender(ctx):
     state["surrender_votes"].add(uid_str)
     total_voters = [pid for pid in state["players"] if pid != last_player_id]
     votes_needed = len(total_voters)
-    await ctx.send(f"🗳️ <@{uid_str}> đã bỏ phiếu đầu hàng ({len(state['surrender_votes'])}/{votes_needed}).")
+    await ctx.send(
+        f"🗳️ <@{uid_str}> đã bỏ phiếu đầu hàng ({len(state['surrender_votes'])}/{votes_needed})."
+    )
     if len(state["surrender_votes"]) >= votes_needed and votes_needed > 0:
         last_player_id_str = str(last_player_id)
         if last_player_id_str == str(bot.user.id):
@@ -1848,7 +2149,9 @@ async def surrender(ctx):
             del game_state[ctx.channel.id]
             await ctx.send("💥 Đa số đã đồng ý đầu hàng. Bot đã chặn bạn thành công!")
         else:
-            user_stats.setdefault(last_player_id_str, {"rank": 0, "solan": 0, "streak": 0})
+            user_stats.setdefault(
+                last_player_id_str, {"rank": 0, "solan": 0, "streak": 0}
+            )
             bonus = 1
             if user_stats[last_player_id_str]["streak"] >= 5:
                 bonus += 1
@@ -1857,7 +2160,10 @@ async def surrender(ctx):
             reset_streak_for_all(ctx.channel.id)
             save_user_stats()
             del game_state[ctx.channel.id]
-            await ctx.send(f"💥 Đa số đã đồng ý đầu hàng. <@{last_player_id}> thắng và được +{bonus} điểm!")
+            await ctx.send(
+                f"💥 Đa số đã đồng ý đầu hàng. <@{last_player_id}> thắng và được +{bonus} điểm!"
+            )
+
 
 @bot.command()
 @commands.cooldown(1, 5, commands.BucketType.user)
@@ -1881,6 +2187,7 @@ async def stop(ctx):
     del game_state[ctx.channel.id]
     await ctx.send("🛑 Trò chơi đã kết thúc.")
 
+
 @bot.command()
 @commands.cooldown(1, 5, commands.BucketType.user)
 async def info(ctx):
@@ -1892,11 +2199,26 @@ async def info(ctx):
         embed = discord.Embed(
             title="Thông tin Trận Đấu Giải",
             description=f"Đội hiện tại: {state['current_team']}\n**Cụm từ cuối:** `{state['last_word']}`\nChuỗi hiện tại: {state['team_streak']}",
-            color=discord.Color.blue()
+            color=discord.Color.blue(),
         )
-        embed.add_field(name="Lịch sử", value=", ".join(state["history"]) if state["history"] else "Chưa có lịch sử.", inline=False)
-        embed.add_field(name="Thành viên đã chơi", value=", ".join(f"<@{pid}>" for pid in state["players"]) if state["players"] else "Chưa có người chơi.", inline=False)
-        embed.set_footer(text=f"Yêu cầu bởi {ctx.author.display_name}", icon_url=ctx.author.avatar.url if ctx.author.avatar else None)
+        embed.add_field(
+            name="Lịch sử",
+            value=", ".join(state["history"])
+            if state["history"]
+            else "Chưa có lịch sử.",
+            inline=False,
+        )
+        embed.add_field(
+            name="Thành viên đã chơi",
+            value=", ".join(f"<@{pid}>" for pid in state["players"])
+            if state["players"]
+            else "Chưa có người chơi.",
+            inline=False,
+        )
+        embed.set_footer(
+            text=f"Yêu cầu bởi {ctx.author.display_name}",
+            icon_url=ctx.author.avatar.url if ctx.author.avatar else None,
+        )
         await ctx.send(embed=embed)
     else:
         state = game_state.get(ctx.channel.id)
@@ -1906,23 +2228,50 @@ async def info(ctx):
         embed = discord.Embed(
             title="Thông tin Trò Chơi",
             description=f"**Cụm từ cuối:** `{state['last_word']}`",
-            color=discord.Color.blue()
+            color=discord.Color.blue(),
         )
-        embed.add_field(name="Lịch sử", value=", ".join(state["history"]) if state["history"] else "Chưa có lịch sử.", inline=False)
-        embed.add_field(name="Người chơi", value=", ".join(f"<@{pid}>" for pid in state["players"]) if state["players"] else "Chưa có người chơi.", inline=False)
-        embed.set_footer(text=f"Yêu cầu bởi {ctx.author.display_name}", icon_url=ctx.author.avatar.url if ctx.author.avatar else None)
+        embed.add_field(
+            name="Lịch sử",
+            value=", ".join(state["history"])
+            if state["history"]
+            else "Chưa có lịch sử.",
+            inline=False,
+        )
+        embed.add_field(
+            name="Người chơi",
+            value=", ".join(f"<@{pid}>" for pid in state["players"])
+            if state["players"]
+            else "Chưa có người chơi.",
+            inline=False,
+        )
+        embed.set_footer(
+            text=f"Yêu cầu bởi {ctx.author.display_name}",
+            icon_url=ctx.author.avatar.url if ctx.author.avatar else None,
+        )
         await ctx.send(embed=embed)
+
 
 # --- BOT PLAY SYSTEM ---
 @bot.command(name="start_bot")
 @commands.cooldown(1, 5, commands.BucketType.user)
 async def start_bot(ctx, difficulty: str = "medium"):
     difficulty = difficulty.lower()
-    if difficulty not in ("easy", "medium", "hard", "insane-min", "insane-mid", "insane-max"):
-        await ctx.send("⚠️ Độ khó không hợp lệ. Chọn một trong: easy, medium, hard, insane-min, insane-mid, insane-max.")
+    if difficulty not in (
+        "easy",
+        "medium",
+        "hard",
+        "insane-min",
+        "insane-mid",
+        "insane-max",
+    ):
+        await ctx.send(
+            "⚠️ Độ khó không hợp lệ. Chọn một trong: easy, medium, hard, insane-min, insane-mid, insane-max."
+        )
         return
     if is_tournament(ctx):
-        await ctx.send("🚫 Không thể bắt đầu trò chơi thường khi đang có trận đấu giải đấu.")
+        await ctx.send(
+            "🚫 Không thể bắt đầu trò chơi thường khi đang có trận đấu giải đấu."
+        )
         return
     if str(ctx.author.id) in banned_users:
         await ctx.send("🚫 Bạn đã bị cấm chơi trò này.")
@@ -1934,13 +2283,12 @@ async def start_bot(ctx, difficulty: str = "medium"):
         await ctx.send("⚠️ Đã có trò chơi hoặc trận đấu khác đang diễn ra.")
         return
     selected_phrase = selected_phrase = select_start_phrase(
-        max_samples=100,
-        forced_win_lookahead=5,
-        time_budget=0.3,
-        safety_filter=True
+        max_samples=100, forced_win_lookahead=5, time_budget=0.3, safety_filter=True
     )
     if not selected_phrase:
-        await ctx.send("😔 Không thể tìm được cụm từ bắt đầu có thể nối tiếp. Vui lòng thử lại hoặc thêm từ vào từ điển.")
+        await ctx.send(
+            "😔 Không thể tìm được cụm từ bắt đầu có thể nối tiếp. Vui lòng thử lại hoặc thêm từ vào từ điển."
+        )
         return
     w1, w2 = selected_phrase.split()
     mutual_exclusion_check(ctx.channel.id)
@@ -1950,16 +2298,20 @@ async def start_bot(ctx, difficulty: str = "medium"):
         "players": [str(bot.user.id)],
         "last_word": w2,
         "possible_phrases": [
-            f"{w2} {next_w}" for next_w in FIRST_WORDS.get(w2, set())
+            f"{w2} {next_w}"
+            for next_w in FIRST_WORDS.get(w2, set())
             if f"{w2} {next_w}" in VALID_PHRASES and next_w != w1
         ],
         "last_player_id": None,
         "surrender_votes": set(),
         "with_bot": True,
         "bot_difficulty": difficulty,
-        "bot_last_word": w2
+        "bot_last_word": w2,
     }
-    await ctx.send(f"🤖 Trò chơi với bot ({difficulty}) bắt đầu!\nCụm từ đầu: `{w1} {w2}`\nBạn đi trước với: `{w2}`?")
+    await ctx.send(
+        f"🤖 Trò chơi với bot ({difficulty}) bắt đầu!\nCụm từ đầu: `{w1} {w2}`\nBạn đi trước với: `{w2}`?"
+    )
+
 
 # --- RANKING & HALL OF FAME & SEASON ---
 def reset_season():
@@ -1975,7 +2327,7 @@ def reset_season():
     save_hall_of_fame()
     season_info["seasons"] += 1
     season_info["start"] = datetime.utcnow().isoformat()
-    
+
     current_date = datetime.now()
     if current_date.month == 12:
         next_month = 1
@@ -1984,8 +2336,11 @@ def reset_season():
         next_month = current_date.month + 1
         next_year = current_date.year
     _, num_days_next_month = calendar.monthrange(next_year, next_month)
-    season_info["end"] = (datetime.utcnow() + timedelta(days=num_days_next_month)).isoformat()
+    season_info["end"] = (
+        datetime.utcnow() + timedelta(days=num_days_next_month)
+    ).isoformat()
     save_season_info()
+
 
 def check_season_end():
     end = datetime.fromisoformat(season_info["end"])
@@ -1995,6 +2350,7 @@ def check_season_end():
         return True
     return False
 
+
 @bot.command()
 @commands.cooldown(1, 5, commands.BucketType.user)
 async def start_season(ctx):
@@ -2002,7 +2358,10 @@ async def start_season(ctx):
         await ctx.send("🚫 Chỉ Admin mới được bắt đầu mùa giải mới.")
         return
     reset_season()
-    await ctx.send(f"✅ Đã bắt đầu mùa giải mới: Season {to_roman(season_info['seasons'])}!")
+    await ctx.send(
+        f"✅ Đã bắt đầu mùa giải mới: Season {to_roman(season_info['seasons'])}!"
+    )
+
 
 @bot.command()
 @commands.cooldown(1, 5, commands.BucketType.user)
@@ -2011,7 +2370,10 @@ async def end_season(ctx):
         await ctx.send("🚫 Chỉ Admin mới được kết thúc mùa giải.")
         return
     reset_season()
-    await ctx.send(f"✅ Đã kết thúc và bắt đầu mùa giải mới: Season {to_roman(season_info['seasons'])}!")
+    await ctx.send(
+        f"✅ Đã kết thúc và bắt đầu mùa giải mới: Season {to_roman(season_info['seasons'])}!"
+    )
+
 
 @bot.command()
 @commands.cooldown(1, 5, commands.BucketType.user)
@@ -2024,18 +2386,25 @@ async def extend_season(ctx, days: int = 5):
     save_season_info()
     await ctx.send(f"✅ Đã gia hạn mùa giải thêm {days} ngày.")
 
+
 @bot.command()
 @commands.cooldown(1, 5, commands.BucketType.user)
 async def season(ctx):
     if check_season_end():
-        await ctx.send(f"🔄 Mùa giải đã kết thúc! Đã bắt đầu Season {to_roman(season_info['seasons'])}")
+        await ctx.send(
+            f"🔄 Mùa giải đã kết thúc! Đã bắt đầu Season {to_roman(season_info['seasons'])}"
+        )
 
     # Find top player
     top_player = None
     if user_stats:
         sorted_players = sorted(
             user_stats.items(),
-            key=lambda x: (-x[1].get("rank", 0), -x[1].get("solan", 0), -x[1].get("streak", 0))
+            key=lambda x: (
+                -x[1].get("rank", 0),
+                -x[1].get("solan", 0),
+                -x[1].get("streak", 0),
+            ),
         )
         if sorted_players:
             uid = sorted_players[0][0]
@@ -2045,14 +2414,13 @@ async def season(ctx):
     top_team = None
     if hall_of_fame:
         sorted_teams = sorted(
-            hall_of_fame.items(),
-            key=lambda x: (-x[1]["points"], -x[1]["streak"])
+            hall_of_fame.items(), key=lambda x: (-x[1]["points"], -x[1]["streak"])
         )
         if sorted_teams:
             top_team = sorted_teams[0][0]
 
-    start_time = datetime.fromisoformat(season_info['start'])
-    end_time = datetime.fromisoformat(season_info['end'])
+    start_time = datetime.fromisoformat(season_info["start"])
+    end_time = datetime.fromisoformat(season_info["end"])
     embed = discord.Embed(
         title=f"Thông tin Mùa Giải - Season {to_roman(season_info['seasons'])}",
         description=(
@@ -2061,10 +2429,14 @@ async def season(ctx):
             f"**Bắt đầu:** {format_dt(start_time, 'F')}\n"
             f"**Kết thúc:** {format_dt(end_time, 'R')}"
         ),
-        color=discord.Color.blue()
+        color=discord.Color.blue(),
     )
-    embed.set_footer(text=f"Yêu cầu bởi {ctx.author.display_name}", icon_url=ctx.author.avatar.url if ctx.author.avatar else None)
+    embed.set_footer(
+        text=f"Yêu cầu bởi {ctx.author.display_name}",
+        icon_url=ctx.author.avatar.url if ctx.author.avatar else None,
+    )
     await ctx.send(embed=embed)
+
 
 @bot.command()
 @commands.cooldown(1, 5, commands.BucketType.user)
@@ -2073,15 +2445,21 @@ async def rank(ctx):
         await ctx.send("📉 Chưa có ai chơi hoặc chưa có lượt chơi nào hợp lệ.")
         return
     if check_season_end():
-        await ctx.send(f"🔄 Mùa giải đã kết thúc! Đã bắt đầu Season {to_roman(season_info['seasons'])}")
+        await ctx.send(
+            f"🔄 Mùa giải đã kết thúc! Đã bắt đầu Season {to_roman(season_info['seasons'])}"
+        )
     sorted_stats = sorted(
         user_stats.items(),
-        key=lambda x: (-x[1].get("rank", 0), -x[1].get("solan", 0), -x[1].get("streak", 0))
+        key=lambda x: (
+            -x[1].get("rank", 0),
+            -x[1].get("solan", 0),
+            -x[1].get("streak", 0),
+        ),
     )
     embed = discord.Embed(
         title=f"🏆 BẢNG XẾP HẠNG TOP 10 - Season {to_roman(season_info['seasons'])}",
         description="Dưới đây là danh sách người chơi dẫn đầu!",
-        color=discord.Color.gold()
+        color=discord.Color.gold(),
     )
     medals = ["🥇", "🥈", "🥉"]
     for i, (uid, data) in enumerate(sorted_stats[:10], 1):
@@ -2091,12 +2469,14 @@ async def rank(ctx):
         except:
             name = f"ID:{uid}"
         medal_or_number = medals[i - 1] if i <= 3 else f"#{i}"
-        value = (
-            f"**Điểm:** {data['rank']} | **Lượt:** {data['solan']} | **Chuỗi:** {data['streak']}"
-        )
+        value = f"**Điểm:** {data['rank']} | **Lượt:** {data['solan']} | **Chuỗi:** {data['streak']}"
         embed.add_field(name=f"{medal_or_number} {name}", value=value, inline=False)
-    embed.set_footer(text=f"Yêu cầu bởi {ctx.author.display_name}", icon_url=ctx.author.avatar.url if ctx.author.avatar else None)
+    embed.set_footer(
+        text=f"Yêu cầu bởi {ctx.author.display_name}",
+        icon_url=ctx.author.avatar.url if ctx.author.avatar else None,
+    )
     await ctx.send(embed=embed)
+
 
 @bot.command()
 @commands.cooldown(1, 5, commands.BucketType.user)
@@ -2105,44 +2485,51 @@ async def halloffame(ctx):
         await ctx.send("📉 Chưa có đội nào.")
         return
     if check_season_end():
-        await ctx.send(f"🔄 Mùa giải đã kết thúc! Đã bắt đầu Season {to_roman(season_info['seasons'])}")
-    sorted_teams = sorted(hall_of_fame.items(), key=lambda x: (-x[1]["points"], -x[1]["streak"]))
+        await ctx.send(
+            f"🔄 Mùa giải đã kết thúc! Đã bắt đầu Season {to_roman(season_info['seasons'])}"
+        )
+    sorted_teams = sorted(
+        hall_of_fame.items(), key=lambda x: (-x[1]["points"], -x[1]["streak"])
+    )
     medals = ["🥇", "🥈", "🥉"]
-    embed = discord.Embed(title=f"🏆 Hall of Fame - Season {to_roman(season_info['seasons'])}", color=discord.Color.gold())
+    embed = discord.Embed(
+        title=f"🏆 Hall of Fame - Season {to_roman(season_info['seasons'])}",
+        color=discord.Color.gold(),
+    )
     for i, (team, data) in enumerate(sorted_teams, 1):
-        medal = medals[i-1] if i <= 3 else f"#{i}"
+        medal = medals[i - 1] if i <= 3 else f"#{i}"
         members = ", ".join(f"<@{uid}>" for uid in data["members"])
         embed.add_field(
             name=f"{medal} {team}",
             value=f"Điểm: {data['points']} | Chuỗi: {data['streak']}\nThành viên: {members}",
-            inline=False
+            inline=False,
         )
-    embed.set_footer(text=f"Yêu cầu bởi {ctx.author.display_name}", icon_url=ctx.author.avatar.url if ctx.author.avatar else None)
+    embed.set_footer(
+        text=f"Yêu cầu bởi {ctx.author.display_name}",
+        icon_url=ctx.author.avatar.url if ctx.author.avatar else None,
+    )
     await ctx.send(embed=embed)
+
 
 # --- HINT/HELP ---
 def difficulize(phrase):
-    vowels = 'aeiouáàảãạăắằẳẵặâấầẩẫậéèẻẽẹêếềểễệíìỉĩịóòỏõọôốồổỗộơớờởỡợúùủũụưứừửữựýỳỷỹỵ'
-    state_1 = ' '.join([w[0] + '_' * (len(w) - 1) for w in phrase.split()])
-    state_2 = ''.join(
-        c if c.lower() in vowels else ' ' if c == ' ' else '_'
-        for c in phrase
+    vowels = "aeiouáàảãạăắằẳẵặâấầẩẫậéèẻẽẹêếềểễệíìỉĩịóòỏõọôốồổỗộơớờởỡợúùủũụưứừửữựýỳỷỹỵ"
+    state_1 = " ".join([w[0] + "_" * (len(w) - 1) for w in phrase.split()])
+    state_2 = "".join(
+        c if c.lower() in vowels else " " if c == " " else "_" for c in phrase
     )
     state_3_part = []
     for word in phrase.split():
-        temp = ''
+        temp = ""
         for i, c in enumerate(word):
             if i == 0 or c.lower() in vowels:
                 temp += c
             else:
-                temp += '_'
+                temp += "_"
         state_3_part.append(temp)
     state_3 = f"{' '.join(state_3_part)}"
-    return (
-        f"{state_1}, "
-        f"{state_2}, "
-        f"{state_3}"
-    )
+    return f"{state_1}, {state_2}, {state_3}"
+
 
 @bot.command()
 @commands.cooldown(1, 5, commands.BucketType.user)
@@ -2165,24 +2552,27 @@ async def hint(ctx):
         await ctx.send("⚠️ Bạn chỉ được dùng trợ giúp 1 lần mỗi game.")
         return
     last_word = state["last_word"]
-    history_phrases = {" ".join(state["history"][i:i+2]) for i in range(len(state["history"]) - 1)}
+    history_phrases = {
+        " ".join(state["history"][i : i + 2]) for i in range(len(state["history"]) - 1)
+    }
     history_words = set(state["history"])
     suggestion = None
     for next_w in FIRST_WORDS.get(last_word, set()):
         potential_phrase = f"{last_word} {next_w}"
         if (
-            potential_phrase in VALID_PHRASES and
-            potential_phrase not in history_phrases and
-            next_w not in history_words and
-            last_word != next_w
+            potential_phrase in VALID_PHRASES
+            and potential_phrase not in history_phrases
+            and next_w not in history_words
+            and last_word != next_w
         ):
             suggestion = potential_phrase
-            break        
+            break
     state["help_used"].add(str(ctx.author.id))
     if suggestion:
         await ctx.send(f"💡 Gợi ý cho bạn: `{difficulize(suggestion)}`")
     else:
         await ctx.send("😔 Không còn cụm từ hợp lệ để nối tiếp.")
+
 
 # ======= Start Discord Bot =======
 
